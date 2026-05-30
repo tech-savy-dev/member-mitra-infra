@@ -30,36 +30,65 @@ to AWS yet — waiting on AWS account credentials.
 
 ### Validation status
 
-- `terraform fmt -recursive -check` — pending (run after files settle)
-- `terraform validate` — pending (requires `terraform init` per stack)
-- `tflint --recursive` — pending
-- No commits to GitHub yet
+- `terraform fmt -recursive -check` — ✓ clean
+- `terraform validate` (per stack: bootstrap, shared, dev, prod) — ✓ all four pass
+- `tflint --recursive` — not run locally (CI workflow runs it on every PR)
+- Local commit `7245473` — created
+- GitHub remote configured: `https://github.com/tech-savy-dev/member-mitra-infra.git`
+- Push: **pending** — GitHub repo doesn't exist yet (manual step below)
 
 ---
 
-## Next Step
+## Next Step (two manual gates, owner-only)
 
-**Provide AWS credentials and apply bootstrap.**
+### Gate 1: Create the GitHub repo + push
 
-Required from the user:
+1. Browser → https://github.com/new
+2. Owner: `tech-savy-dev`
+3. Name: `member-mitra-infra`
+4. **Private**
+5. **DO NOT** add README / .gitignore / license (we have them locally)
+6. Create.
+7. Terminal:
+   ```bash
+   cd ~/projects/Gym-Billing/member-mitra-infra
+   git push -u origin main
+   ```
 
-1. AWS account ID
-2. IAM admin user OR AWS SSO profile name with admin rights
-3. GitHub organization name (assumed `tech-savy-dev`; confirm)
-4. Confirm domain `membermitra.com` is in Route53 (or transfer plan)
+### Gate 2: AWS credentials + bootstrap apply
 
-Once credentials are configured locally:
+Provide:
+- AWS account ID
+- Local AWS credentials configured (`aws sts get-caller-identity` works
+  and shows an admin user/role).
+- Confirm `tech-savy-dev` is the right GitHub org for OIDC trust.
+
+Then run:
 
 ```bash
 cd ~/projects/Gym-Billing/member-mitra-infra/bootstrap
 terraform init
-terraform apply
-terraform output > ../shared/.bootstrap-outputs.tfvars.example
+terraform apply -var "github_org=tech-savy-dev"
+terraform output -json > bootstrap-outputs.json
 ```
 
-The outputs populate the S3 bucket name + KMS key ARN + OIDC role ARNs
-used by `shared/backend.tf`, `environments/*/backend.tf`, and the GitHub
-Actions workflows.
+Capture the outputs and update the placeholders in:
+- `shared/backend.tf`, `environments/dev/backend.tf`,
+  `environments/prod/backend.tf` → `bucket` field with the real
+  `tfstate_bucket_name`.
+- `environments/dev/main.tf`, `environments/prod/main.tf` →
+  `data.terraform_remote_state.shared.config.bucket` field with the
+  same bucket name.
+- `.github/workflows/terraform-plan.yml` → `AWS_ROLE` with
+  `oidc_role_dev_arn`.
+- `.github/workflows/terraform-apply.yml` → both role ARNs.
+- `.github/workflows/frontend-deploy.yml` → both role ARNs +
+  `APP_REPO` if different from `tech-savy-dev/member-mitra`.
+- `environments/dev/terraform.tfvars` and
+  `environments/prod/terraform.tfvars` → set `kms_key_arn` from
+  `kms_key_arn` output, and `alarm_email` if you want SNS.
+
+Then commit + push the wired values and CI takes over.
 
 ---
 
