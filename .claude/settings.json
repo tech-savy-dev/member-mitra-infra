@@ -1,0 +1,49 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(terraform fmt:*)",
+      "Bash(terraform validate:*)",
+      "Bash(terraform init:*)",
+      "Bash(terraform plan:*)",
+      "Bash(terraform output:*)",
+      "Bash(terraform state list:*)",
+      "Bash(terraform state show:*)",
+      "Bash(tflint:*)",
+      "Bash(checkov:*)",
+      "Bash(aws sts get-caller-identity:*)",
+      "Bash(aws sts decode-authorization-message:*)",
+      "Bash(aws s3 ls:*)",
+      "Bash(aws ssm get-parameter:*)",
+      "Bash(aws ssm describe-parameters:*)",
+      "Bash(aws cloudfront list-distributions:*)",
+      "Bash(aws cloudfront get-distribution:*)",
+      "Bash(aws route53 list-hosted-zones:*)",
+      "Bash(aws route53 list-resource-record-sets:*)",
+      "Bash(aws acm list-certificates:*)",
+      "Bash(aws acm describe-certificate:*)",
+      "Bash(aws iam list-roles:*)",
+      "Bash(aws iam get-role:*)",
+      "Bash(aws ec2 describe-vpcs:*)",
+      "Bash(aws ec2 describe-subnets:*)",
+      "Bash(aws logs describe-log-groups:*)",
+      "Bash(aws cloudwatch describe-alarms:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)"
+    ],
+    "deny": [
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
+      "Bash(aws ssm put-parameter:*)",
+      "Bash(aws iam create-*:*)",
+      "Bash(aws iam delete-*:*)",
+      "Bash(aws iam attach-*:*)",
+      "Bash(aws iam detach-*:*)",
+      "Bash(aws s3 rb:*)",
+      "Bash(aws s3 rm:*)",
+      "Bash(aws cloudfront delete-distribution:*)",
+      "Bash(aws route53 delete-hosted-zone:*)"
+    ]
+  }
+}

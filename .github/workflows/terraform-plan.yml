@@ -1,0 +1,93 @@
+name: terraform-plan
+
+on:
+  pull_request:
+    paths:
+      - "shared/**"
+      - "environments/**"
+      - "modules/**"
+      - ".github/workflows/terraform-plan.yml"
+
+# OIDC token to assume AWS role.
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: ap-south-1
+  TF_VERSION: "1.7.5"
+  TFLINT_VERSION: "v0.50.3"
+  AWS_ROLE: arn:aws:iam::REPLACE_ACCOUNT_ID:role/member-mitra-infra-dev
+
+jobs:
+  fmt:
+    name: terraform fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - run: terraform fmt -recursive -check -diff
+
+  plan:
+    name: plan (${{ matrix.stack }})
+    runs-on: ubuntu-latest
+    needs: fmt
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [shared, environments/dev, environments/prod]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: tflint
+        working-directory: ${{ matrix.stack }}
+        run: |
+          tflint --init
+          tflint --recursive
+
+      - name: terraform init
+        working-directory: ${{ matrix.stack }}
+        run: terraform init -input=false
+
+      - name: terraform validate
+        working-directory: ${{ matrix.stack }}
+        run: terraform validate
+
+      - name: terraform plan
+        id: plan
+        working-directory: ${{ matrix.stack }}
+        run: |
+          terraform plan -no-color -input=false -out=tfplan 2>&1 | tee plan-output.txt
+          # Truncate for PR comment if huge.
+          head -c 60000 plan-output.txt > plan-truncated.txt
+
+      - name: post plan comment
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('${{ matrix.stack }}/plan-truncated.txt', 'utf8');
+            const body = `### Terraform plan — \`${{ matrix.stack }}\`\n\n<details><summary>plan output</summary>\n\n\`\`\`hcl\n${plan}\n\`\`\`\n\n</details>`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });

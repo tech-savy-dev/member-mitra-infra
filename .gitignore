@@ -1,0 +1,35 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Sensitive variable files — commit *.example only
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local CLI state
+.terraform.tfstate.lock.info
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Claude per-user overrides
+.claude/settings.local.json
+
+# Env files (should never appear in this repo, defensive)
+.env
+.env.local
+*.env
+
+# Build outputs (if any helper scripts produce them)
+dist/
+node_modules/

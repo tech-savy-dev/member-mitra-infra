@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and fill in the real values from bootstrap output.
+# terraform.tfvars itself is gitignored.
+
+# From bootstrap output:
+kms_key_arn = "arn:aws:kms:ap-south-1:000000000000:key/REPLACE_ME"
+
+# Optional but recommended — confirmation email is sent to this address.
+alarm_email = "you@example.com"

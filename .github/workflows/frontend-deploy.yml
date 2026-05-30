@@ -1,0 +1,110 @@
+name: frontend-deploy
+
+# Triggered manually OR via repository_dispatch from the app repo's
+# release workflow. Builds the React app from a checkout of the app
+# repo, syncs to S3, invalidates CloudFront.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: dev or prod
+        required: true
+        type: choice
+        options: [dev, prod]
+      app_ref:
+        description: app-repo git ref (branch / tag / sha)
+        required: false
+        default: main
+  repository_dispatch:
+    types: [deploy-frontend]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-south-1
+  NODE_VERSION: "20"
+  APP_REPO: tech-savy-dev/member-mitra
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || github.event.client_payload.environment }}
+    steps:
+      - name: Resolve environment
+        id: env
+        run: |
+          ENV="${{ inputs.environment || github.event.client_payload.environment }}"
+          REF="${{ inputs.app_ref || github.event.client_payload.app_ref || 'main' }}"
+          if [[ "$ENV" == "prod" ]]; then
+            echo "role=arn:aws:iam::REPLACE_ACCOUNT_ID:role/member-mitra-infra-prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "role=arn:aws:iam::REPLACE_ACCOUNT_ID:role/member-mitra-infra-dev" >> "$GITHUB_OUTPUT"
+          fi
+          echo "stack=environments/$ENV" >> "$GITHUB_OUTPUT"
+          echo "env=$ENV" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.APP_REPO }}
+          ref: ${{ steps.env.outputs.ref }}
+          token: ${{ secrets.APP_REPO_PAT }} # PAT with `repo:read` if app repo is private
+          path: app
+
+      - name: Checkout infra repo (for tofu state lookup)
+        uses: actions/checkout@v4
+        with:
+          path: infra
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install + build
+        working-directory: app
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          npm ci
+          npm run build
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Look up bucket + distribution from infra state
+        id: lookup
+        working-directory: infra/${{ steps.env.outputs.stack }}
+        run: |
+          terraform init -input=false
+          BUCKET=$(terraform output -raw s3_bucket_name)
+          DIST=$(terraform output -raw cloudfront_distribution_id)
+          echo "bucket=$BUCKET" >> "$GITHUB_OUTPUT"
+          echo "dist=$DIST" >> "$GITHUB_OUTPUT"
+
+      - name: Sync to S3
+        run: |
+          aws s3 sync app/dist/ s3://${{ steps.lookup.outputs.bucket }}/ \
+            --delete \
+            --cache-control "public, max-age=31536000, immutable" \
+            --exclude "index.html"
+          aws s3 cp app/dist/index.html s3://${{ steps.lookup.outputs.bucket }}/index.html \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.lookup.outputs.dist }} \
+            --paths "/*"

@@ -1,0 +1,3 @@
+# Copy to terraform.tfvars and fill in.
+kms_key_arn = "arn:aws:kms:ap-south-1:000000000000:key/REPLACE_ME"
+alarm_email = "you@example.com"
