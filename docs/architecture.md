@@ -35,11 +35,16 @@ V1 ships frontend on AWS; backend stays on Supabase Cloud.
                           │  VPC  10.0.0.0/16  (ap-south-1)      │
                           │   shared between dev + prod          │
                           │                                       │
-                          │   public subnets ─ NAT × 2 (AZ-HA)   │
+                          │   public subnets ─ IGW only          │
                           │   private subnets dev (tag env=dev)  │
                           │   private subnets prod (tag env=prod)│
+                          │   NAT: OPT-IN (var.enable_nat=false) │
                           │   VPC endpoints: S3, DynamoDB        │
                           └──────────────────────────────────────┘
+
+  V1 has no private workloads (backend=Supabase, frontend=S3+CloudFront),
+  so NAT is intentionally off to save ~$66/mo. Flip enable_nat=true the
+  same PR that adds the first Lambda/ECS/RDS inside private subnets.
 
                           ┌──────────────────────────────────────┐
                           │  SSM Parameter Store (KMS-encrypted) │
@@ -67,9 +72,9 @@ The app's edge-functions + Postgres + auth remain on:
 | # | Decision | Why |
 |---|---|---|
 | 1 | Backend stays on Supabase Cloud | Avoids 3-4 wk rewrite. AWS only hosts frontend + supporting services. |
-| 2 | One shared VPC for dev + prod | Saves ~$45/mo on NAT. Isolation via subnet tags + IAM scoping. |
-| 3 | NAT × 2 (AZ-HA) | Single NAT is a single point of failure. Two is the minimum for HA. |
-| 4 | VPC endpoints for S3 + DynamoDB | Gateway endpoints are free, save NAT data-processing charges. |
+| 2 | One shared VPC for dev + prod | Simpler IaC, free at this scale, isolation via subnet tags + IAM scoping. |
+| 3 | NAT Gateways OFF by default (`enable_nat = false`) | V1 has zero private workloads (Supabase backend, S3+CloudFront frontend). NAT would burn ~$66/mo for unused capacity. Flip to true when first Lambda/ECS/RDS lands. |
+| 4 | VPC endpoints for S3 + DynamoDB | Gateway endpoints are free, save NAT data-processing charges when NAT is later enabled. |
 | 5 | CloudFront cert + WAF in us-east-1 | CloudFront requirement; can't change. |
 | 6 | OAC, not OAI | OAC is newer, supports SSE-KMS on origin. OAI is legacy. |
 | 7 | SSM Parameter Store, not Secrets Manager | Cheaper at our scale; migration to Secrets Manager is trivial later. |
@@ -85,12 +90,15 @@ The app's edge-functions + Postgres + auth remain on:
 | Component | $/mo |
 |---|---|
 | Bootstrap (S3 + DDB + KMS + IAM) | ~$1 |
-| Shared (VPC + NAT × 2 + endpoints) | ~$66 |
+| Shared (VPC + endpoints, NAT OFF) | ~$0 |
 | DNS (Route53 zone + queries) | ~$1 |
 | dev — frontend + WAF + cert + monitoring | ~$8 |
 | prod — frontend + WAF + cert + monitoring | ~$10 |
-| **Total AWS** | **~$86/mo** |
+| **Total AWS** | **~$20/mo** |
+
+NAT is opt-in (off in V1). Enabling later adds ~$66/mo per 2-NAT HA
+config, or ~$33/mo for single-NAT non-HA.
 
 Plus Supabase + Resend (separate bills). At 1,000 active gyms the AWS
-spend stays within $100/mo — the gym backend on Supabase will dominate
+spend stays under $30/mo — the gym backend on Supabase will dominate
 the bill (~$85/mo Pro + Small compute).

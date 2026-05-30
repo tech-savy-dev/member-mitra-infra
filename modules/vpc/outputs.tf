@@ -19,7 +19,12 @@ output "private_subnet_ids_prod" {
 }
 
 output "nat_gateway_ids" {
-  value = aws_nat_gateway.main[*].id
+  description = "Empty list when enable_nat=false."
+  value       = aws_nat_gateway.main[*].id
+}
+
+output "nat_enabled" {
+  value = var.enable_nat
 }
 
 output "azs" {
