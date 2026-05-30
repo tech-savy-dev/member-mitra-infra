@@ -39,9 +39,9 @@ jobs:
           ENV="${{ inputs.environment || github.event.client_payload.environment }}"
           REF="${{ inputs.app_ref || github.event.client_payload.app_ref || 'main' }}"
           if [[ "$ENV" == "prod" ]]; then
-            echo "role=arn:aws:iam::REPLACE_ACCOUNT_ID:role/member-mitra-infra-prod" >> "$GITHUB_OUTPUT"
+            echo "role=arn:aws:iam::677450898543:role/member-mitra-infra-prod" >> "$GITHUB_OUTPUT"
           else
-            echo "role=arn:aws:iam::REPLACE_ACCOUNT_ID:role/member-mitra-infra-dev" >> "$GITHUB_OUTPUT"
+            echo "role=arn:aws:iam::677450898543:role/member-mitra-infra-dev" >> "$GITHUB_OUTPUT"
           fi
           echo "stack=environments/$ENV" >> "$GITHUB_OUTPUT"
           echo "env=$ENV" >> "$GITHUB_OUTPUT"

@@ -28,7 +28,7 @@ provider "aws" {
 data "terraform_remote_state" "shared" {
   backend = "s3"
   config = {
-    bucket = "REPLACE_ME_FROM_BOOTSTRAP_OUTPUT" # same bucket as backend.tf
+    bucket = "member-mitra-tfstate-62dc6b00"
     key    = "shared/terraform.tfstate"
     region = "ap-south-1"
   }

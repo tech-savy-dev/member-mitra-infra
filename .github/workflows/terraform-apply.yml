@@ -44,7 +44,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::REPLACE_ACCOUNT_ID:role/member-mitra-infra-dev
+          role-to-assume: arn:aws:iam::677450898543:role/member-mitra-infra-dev
           aws-region: ${{ env.AWS_REGION }}
 
       - name: terraform init
@@ -67,7 +67,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::REPLACE_ACCOUNT_ID:role/member-mitra-infra-prod
+          role-to-assume: arn:aws:iam::677450898543:role/member-mitra-infra-prod
           aws-region: ${{ env.AWS_REGION }}
 
       - name: terraform init

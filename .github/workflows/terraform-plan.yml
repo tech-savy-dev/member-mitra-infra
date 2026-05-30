@@ -18,7 +18,7 @@ env:
   AWS_REGION: ap-south-1
   TF_VERSION: "1.7.5"
   TFLINT_VERSION: "v0.50.3"
-  AWS_ROLE: arn:aws:iam::REPLACE_ACCOUNT_ID:role/member-mitra-infra-dev
+  AWS_ROLE: arn:aws:iam::677450898543:role/member-mitra-infra-dev
 
 jobs:
   fmt:

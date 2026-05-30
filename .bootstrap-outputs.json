@@ -1,0 +1,37 @@
+{
+  "kms_key_alias": {
+    "sensitive": false,
+    "type": "string",
+    "value": "alias/member-mitra-shared"
+  },
+  "kms_key_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:kms:ap-south-1:677450898543:key/58f1877b-8725-488c-a48e-c1032cae9f01"
+  },
+  "oidc_provider_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:iam::677450898543:oidc-provider/token.actions.githubusercontent.com"
+  },
+  "oidc_role_dev_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:iam::677450898543:role/member-mitra-infra-dev"
+  },
+  "oidc_role_prod_arn": {
+    "sensitive": false,
+    "type": "string",
+    "value": "arn:aws:iam::677450898543:role/member-mitra-infra-prod"
+  },
+  "tflock_table_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "member-mitra-tflock"
+  },
+  "tfstate_bucket_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "member-mitra-tfstate-62dc6b00"
+  }
+}
