@@ -2,93 +2,116 @@
 
 ## Current Status
 
-**Repo scaffolded.** All Terraform modules, environment compositions,
-CI workflows, and documentation are written. Nothing has been applied
-to AWS yet — waiting on AWS account credentials.
+**dev environment LIVE.** Bootstrap + shared + dev all applied to AWS
+account `677450898543` (ap-south-1). `https://dev.membermitra.com`
+serves the production React build, talking to Mumbai Supabase backend.
 
-### What's in the repo
+### Resources live (43 total)
 
-| Path | Status |
-|---|---|
-| `bootstrap/` | written, NOT applied |
-| `modules/vpc` | written |
-| `modules/dns` | written |
-| `modules/frontend` | written |
-| `modules/secrets` | written |
-| `modules/monitoring` | written |
-| `modules/cicd` | written |
-| `shared/` | composes VPC + DNS |
-| `environments/dev/` | composes frontend + secrets + monitoring |
-| `environments/prod/` | composes frontend + secrets + monitoring (apex domain) |
-| `.github/workflows/terraform-plan.yml` | written |
-| `.github/workflows/terraform-apply.yml` | written |
-| `.github/workflows/frontend-deploy.yml` | written |
-| `docs/architecture.md` | written |
-| `docs/runbook.md` | written |
-| `CLAUDE.md`, `README.md`, `HANDOVER.md` | written |
-| `.claude/settings.json` | allowlists for terraform + aws read-only commands |
+| Stack | Resources | Cost/mo |
+|---|---|---|
+| bootstrap | 17 (S3 state, DDB lock, KMS, OIDC, IAM roles) | ~$1 |
+| shared | 22 (VPC, IGW, 6 subnets, 5 route tables, 2 endpoints, Route53 zone) | ~$0.50 |
+| dev | 24 (S3, CloudFront, ACM, WAFv2, Route53 records, 8 SSM slots, alarm, log group, SNS) | ~$8 |
+| **Total** | **63** | **~$10/mo** |
+
+### Key identifiers
+
+- AWS account: `677450898543`
+- Region: `ap-south-1` (Mumbai)
+- State bucket: `member-mitra-tfstate-62dc6b00`
+- KMS key: `arn:aws:kms:ap-south-1:677450898543:key/58f1877b-8725-488c-a48e-c1032cae9f01`
+- OIDC role (dev): `arn:aws:iam::677450898543:role/member-mitra-infra-dev`
+- OIDC role (prod): `arn:aws:iam::677450898543:role/member-mitra-infra-prod`
+- VPC: `vpc-0f26ab5b76c2240c7`
+- Route53 zone: hosted at AWS, NS records below
+- dev CloudFront: `E19O6WT9BXKV65` (d10abt48upt1to.cloudfront.net)
+- dev S3 bucket: `member-mitra-dev-app`
+
+### Route53 nameservers (for delegation at Namecheap)
+
+```
+ns-1178.awsdns-19.org
+ns-1715.awsdns-22.co.uk
+ns-433.awsdns-54.com
+ns-659.awsdns-18.net
+```
+
+`dev.membermitra.com` is already delegated to Route53 via 4 NS records
+at Namecheap. Prod apex needs nameserver migration at Namecheap (see
+"Next Step").
+
+### Repo state
+
+- ✓ All modules written + validated (`terraform fmt + validate` clean)
+- ✓ Pushed to https://github.com/tech-savy-dev/member-mitra-infra
+- ✓ Bootstrap applied
+- ✓ Shared applied (VPC + Route53 zone)
+- ✓ dev applied (frontend + secrets + monitoring + WAF)
+- ✓ App build deployed to S3 + CloudFront invalidated
+- ✓ `https://dev.membermitra.com` returns HTTP 200 with React app
 
 ### Validation status
 
 - `terraform fmt -recursive -check` — ✓ clean
-- `terraform validate` (per stack: bootstrap, shared, dev, prod) — ✓ all four pass
-- `tflint --recursive` — not run locally (CI workflow runs it on every PR)
-- Local commit `7245473` — created
-- GitHub remote configured: `https://github.com/tech-savy-dev/member-mitra-infra.git`
-- Push: **pending** — GitHub repo doesn't exist yet (manual step below)
+- `terraform validate` — ✓ all 4 stacks pass
+- Real apply outcomes — ✓ all 63 resources up and verified
+- `dig + curl dev.membermitra.com` — ✓ resolves + serves app
+- TLS cert — ✓ valid (ACM, us-east-1)
 
 ---
 
-## Next Step (two manual gates, owner-only)
+## Next Step — Populate dev secrets + prod apex DNS
 
-### Gate 1: Create the GitHub repo + push
+### A. Populate dev SSM SecureStrings (so future Lambdas can read them)
 
-1. Browser → https://github.com/new
-2. Owner: `tech-savy-dev`
-3. Name: `member-mitra-infra`
-4. **Private**
-5. **DO NOT** add README / .gitignore / license (we have them locally)
-6. Create.
-7. Terminal:
-   ```bash
-   cd ~/projects/Gym-Billing/member-mitra-infra
-   git push -u origin main
-   ```
-
-### Gate 2: AWS credentials + bootstrap apply
-
-Provide:
-- AWS account ID
-- Local AWS credentials configured (`aws sts get-caller-identity` works
-  and shows an admin user/role).
-- Confirm `tech-savy-dev` is the right GitHub org for OIDC trust.
-
-Then run:
+All 8 SSM slots currently have placeholder values. Real values via:
 
 ```bash
-cd ~/projects/Gym-Billing/member-mitra-infra/bootstrap
-terraform init
-terraform apply -var "github_org=tech-savy-dev"
-terraform output -json > bootstrap-outputs.json
+aws ssm put-parameter --overwrite --type SecureString \
+  --name /membermitra/dev/supabase/url --value "https://mokhzrbtknnfcurpjylq.supabase.co"
+
+aws ssm put-parameter --overwrite --type SecureString \
+  --name /membermitra/dev/supabase/anon_key --value "<from supabase dashboard>"
+
+# ... repeat for the other 6 slots
 ```
 
-Capture the outputs and update the placeholders in:
-- `shared/backend.tf`, `environments/dev/backend.tf`,
-  `environments/prod/backend.tf` → `bucket` field with the real
-  `tfstate_bucket_name`.
-- `environments/dev/main.tf`, `environments/prod/main.tf` →
-  `data.terraform_remote_state.shared.config.bucket` field with the
-  same bucket name.
-- `.github/workflows/terraform-plan.yml` → `AWS_ROLE` with
-  `oidc_role_dev_arn`.
-- `.github/workflows/terraform-apply.yml` → both role ARNs.
-- `.github/workflows/frontend-deploy.yml` → both role ARNs +
-  `APP_REPO` if different from `tech-savy-dev/member-mitra`.
-- `environments/dev/terraform.tfvars` and
-  `environments/prod/terraform.tfvars` → set `kms_key_arn` from
-  `kms_key_arn` output, and `alarm_email` if you want SNS.
+Frontend at `dev.membermitra.com` already has these embedded via
+`.env.production.local` at build time, so SSM values only matter once
+backend workloads (Lambda, ECS) get added.
 
-Then commit + push the wired values and CI takes over.
+### B. Prod apex DNS — pick a path
+
+Prod uses `membermitra.com` apex + `www.membermitra.com`. Three options:
+
+**B1. Full DNS migration to Route53 (cleanest)**:
+- Copy ALL current Namecheap records (Resend MX/TXT/SPF/DKIM, etc.) into
+  the Route53 zone first.
+- Switch nameservers at Namecheap from `dns1.registrar-servers.com` etc.
+  to the 4 AWS NS shown above.
+- Wait ~24h propagation.
+- Apply `environments/prod/`.
+
+**B2. Subdomain delegation for `app`** (analogous to dev):
+- Change `primary_domain` in prod to `app.membermitra.com`.
+- Delegate `app` subdomain via 4 NS records at Namecheap (same pattern
+  as dev).
+- Keep Resend SMTP at Namecheap untouched.
+- Compromise: URL is `app.membermitra.com` not bare `membermitra.com`.
+
+**B3. Skip prod for now** — dev is enough for launch beta. Add prod
+when you have paying customers.
+
+### C. Wire frontend-deploy workflow (optional, automates this manual deploy)
+
+Set GitHub repo secrets:
+- `VITE_SUPABASE_URL` (Mumbai project URL)
+- `VITE_SUPABASE_ANON_KEY`
+- `APP_REPO_PAT` (only if app repo is private)
+
+Then merging to `main` on the app repo can trigger a deploy via
+`repository_dispatch` (small workflow tweak in the app repo).
 
 ---
 
